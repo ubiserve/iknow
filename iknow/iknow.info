@@ -1,0 +1,5 @@
+; $Id$
+name = "iKnow"
+description = "Location based service which user can post and view news based on the location."
+core = 6.x
+php = 5.x

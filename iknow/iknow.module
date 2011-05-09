@@ -1,0 +1,188 @@
+<?php
+/**
+ * Implementation of hook_init()
+ */
+function iknow_init() {
+    drupal_set_html_head('<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />');
+    drupal_set_html_head('<script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=true"></script>');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function iknow_menu() {
+    $items['iknow/map'] = array(
+        'title' => t('Display main map'),
+        'description' => t('Page link to iknow main map.'),
+        'page callback' => 'iknow_main_page',
+        'access arguments' => array('access content'),
+        'type' => MENU_CALLBACK,
+    );
+    $items['iknow/category/%/%'] = array(
+        'title' => t('Return markers based on category'),
+        'description' => t('Display markers categories.'),
+        'page callback' => 'display_by_category',
+        'page arguments' => array(2,3),
+        'access arguments' => array('access content'),
+        'type' => MENU_CALLBACK,
+    );
+    $items['iknow/search/%'] = array(
+        'title' => t('Search result'),
+        'description' => t('Show search results'),
+        'page callback' => 'show_search_result',
+        'page arguments' => array(2),
+        'access arguments' => array('access content'),
+        'type' => MENU_CALLBACK,
+    );
+    $items['iknow/post/comment'] = array(
+        'title' => t('Post comment'),
+        'description' => t('Post user comment'),
+        'page callback' => 'post_comment',
+        'access arguments' => array('access content'),
+        'type' => MENU_CALLBACK,
+    );
+    return $items;
+}
+
+/**
+ * hook_theme
+ */
+function iknow_theme() {
+    return array(
+        'iknow_map_view' => array(
+            'template' => 'iknow_map_view',
+            'arguments' => array(
+              'image_path' => NULL,
+              'category_path' => NULL,
+              'search_path' => NULL,
+              'post_comment_path' => NULL,
+	    ),
+        ),
+    );
+}
+
+/**
+ * menu: iknow/map/
+ */
+function iknow_main_page() {
+    /* header settings: css, js*/
+    $module_path = drupal_get_path('module', 'iknow');
+    //Drupal.iknow.image_path
+    $image_path = $module_path.'/images/';
+    //Add urls
+    $category_path = url('iknow/category/');
+    $search_path = url('iknow/search/');
+    $post_comment_path = url('iknow/post/comment/');
+    return theme('iknow_map_view',$image_path,$category_path,$search_path,$post_comment_path);
+}
+
+/**
+ * menu: iknow/category/%/%
+ */
+function display_by_category($area,$category) {
+    $category_id = get_category_id($category);
+    $post_array = filter_posts($area,$category_id,$category);
+    printf (json_encode($post_array));
+}
+
+/**
+ * Get category id
+ */
+function get_category_id($category) {
+    $sql = "SELECT * FROM {iknow_category} WHERE category = '%s'";
+    $result = db_fetch_object(db_query($sql,strtolower($category)));
+    return $result->category_id;
+}
+
+/**
+ * Filter posts based on category and area
+ */
+function filter_posts($area,$category_id,$category) {
+    $post_array = array();
+    $sql = "SELECT * FROM {iknow_post} WHERE category_id = %d";
+    $result = db_query($sql,$category_id);
+    while ($data = db_fetch_array($result)) {
+        $comments = get_post_comment($data['post_id']);
+        $address_id = $data['address_id'];
+        $sql_get_address = "SELECT * FROM {iknow_address} WHERE address_id = %d";
+        $address_obj = db_fetch_object(db_query($sql_get_address,$address_id));
+        if (strtolower($address_obj->city)==strtolower($area)) {
+            $sql_get_location = "SELECT * FROM {iknow_location} WHERE location_id = %d";
+            $location_obj = db_fetch_object(db_query($sql_get_location,$data['location_id']));
+            $post = generate_post_array($data,$address_obj,$location_obj,$category);
+            $post['comments'] = $comments;
+            array_push($post_array,$post);
+        }
+    }
+    return $post_array;
+}
+
+/**
+ * get post comment array
+ */
+function get_post_comment($post_id) {
+    $comments = array();
+    $sql = "SELECT * FROM {iknow_post_comment} WHERE post_id = %d";
+    $result = db_query($sql, $post_id);
+    while ($comment = db_fetch_array($result)) {
+        $one_comment['content'] = $comment['content'];
+        $one_comment['date'] = $comment['comment_date'];
+        array_push($comments,$one_comment);
+    }
+    return $comments;
+}
+
+/**
+ * Generate post array
+ */
+function generate_post_array($data,$address_obj,$location_obj,$category) {
+    $post['id'] = $data['post_id'];
+    $post['picture'] = $data['picture'];
+    $post['title'] = $data['title'];
+    $post['keyword'] = $data['keyword'];
+    $post['content']  = $data['content'];
+    $post['created_time'] = $data['created_time'];
+    $post['changed_time'] = $data['changed_time'];
+    $post['category'] = $category;
+    $post['address_obj']['address'] = $address_obj->address;
+    $post['address_obj']['city'] = $address_obj->city;
+    $post['address_obj']['country'] = $address_obj->country;
+    $post['location_obj']['lat'] = $location_obj->lat;
+    $post['location_obj']['lng'] = $location_obj->lng;
+    return $post;
+}
+
+/**
+ * menu: iknow/search/%/
+ */
+function show_search_result($keyword) {
+    $post_array = array();
+    $sql = "SELECT * FROM {iknow_post} WHERE content LIKE '%$keyword%';";
+    $result = db_query($sql);
+    while ($data=db_fetch_array($result)) {
+        $comments = get_post_comment($data['post_id']);
+        $address_id = $data['address_id'];
+        $sql_get_address = "SELECT * FROM {iknow_address} WHERE address_id = %d";
+        $address_obj = db_fetch_object(db_query($sql_get_address,$address_id));
+        $sql_get_location = "SELECT * FROM {iknow_location} WHERE location_id = %d";
+        $location_obj = db_fetch_object(db_query($sql_get_location,$data['location_id']));
+        $sql_get_category = "SELECT * FROM {iknow_category} WHERE category_id = %d";
+        $category_obj = db_fetch_object(db_query($sql_get_category,$data['category_id']));
+        $category = $category_obj->category;
+        $post = generate_post_array($data,$address_obj,$location_obj,$category);
+        $post['comments'] = $comments;
+        array_push($post_array,$post);
+    }
+    printf (json_encode($post_array));
+}
+
+/**
+ * iknow/post/comment
+ */
+function post_comment() {
+    $post_id = $_POST['post_id'];
+    $content = $_POST['content'];
+    $date = $_POST['date'];
+    $sql = 'INSERT INTO {iknow_post_comment}(post_id,content,comment_date)'."VALUES(%d,'%s','%s')";
+    $result = db_query($sql,$post_id,$content,$date);
+}

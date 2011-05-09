@@ -1,0 +1,218 @@
+<?php
+/**
+  * Implementation of hook_install().
+  */
+function iknow_install() {
+    drupal_install_schema('iknow_post');
+    drupal_install_schema('iknow_location');
+    drupal_install_schema('iknow_address');
+    drupal_install_schema('iknow_activity');
+    drupal_install_schema('iknow_category');
+    drupal_install_schema('iknow_post_comment');
+    
+    //Insert default categories into iknow_category
+    $insert_cateogry_sql = "INSERT INTO {iknow_category}(category) VALUES('%s')";
+    db_query($insert_cateogry_sql,"restaurant");
+    db_query($insert_cateogry_sql,"hotel");
+    db_query($insert_cateogry_sql,"library");
+    db_query($insert_cateogry_sql,"hospital");
+    db_query($insert_cateogry_sql,"apartment");
+    db_query($insert_category_sql,"common");
+    db_query($insert_category_sql,"activity");
+    
+}
+/**
+ * Implementation of hook_uninstall().
+ */
+function iknow_uninstall() {
+    drupal_uninstall_schema('iknow_post');
+    drupal_uninstall_schema('iknow_location');
+    drupal_uninstall_schema('iknow_address');
+    drupal_uninstall_schema('iknow_activity');
+    drupal_uninstall_schema('iknow_category');
+    drupal_install_schema('iknow_post_comment');
+}
+/**
+ * Implementation of hook_schema().
+ */
+function iknow_post_schema() {
+    $schema['iknow_post'] = array(
+        'fields' => array(
+            'post_id' => array(
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ),
+            'location_id' => array(
+                'type' => 'int',
+                'not null' => TRUE,
+            ),
+            'address_id' => array(
+                'type' => 'int',
+                'not null' => TRUE,
+            ),
+            'uid' => array(
+                'type' => 'int',
+                'not null' => TRUE,
+            ),
+            'category_id' => array(
+                'type' => 'int',
+                'not null' => TRUE,
+            ),
+            'picture' => array(
+                'type' => 'varchar',
+                'length' => '256',
+                'not null' => FALSE,
+            ),
+            'title' => array(
+                'type' => 'varchar',
+                'length' => '256',
+                'not null' => TRUE,
+            ),
+            'keyword' => array(
+                'type' => 'varchar',
+                'length' => '256',
+                'not null' => FALSE,
+            ),
+            'content' => array(
+                'type' => 'text',
+                'not null' => TRUE,
+            ),
+            'created_time' => array(
+                'type' => 'datetime',
+                'not null' => TRUE,
+            ),
+            'changed_time' => array(
+                'type' => 'datetime',
+                'not null' => TRUE,
+            ),
+        ),
+        'primary key' => array('post_id'),
+    );
+    return $schema;
+}
+
+function iknow_activity_schema() {
+    $schema['iknow_activity'] = array(
+        'fields' => array(
+            'post_id' => array(
+                'type' => 'int',
+                'not null' => TRUE,
+            ),
+            'start_time' => array(
+                'type' => 'datetime',
+                'not null' => TRUE,
+            ),
+            'end_time' => array(
+                'type' => 'datetime',
+                'not null' => TRUE,
+            ),
+        ),
+        'primary key' => array('post_id'),
+    );
+    return $schema;
+}
+
+function iknow_location_schema() {
+    $schema['iknow_location'] = array(
+        'fields' => array(
+            'location_id' => array(
+                'type' => 'serial',
+                'not null' => TRUE,
+                'unsigned' => TRUE,
+            ),
+            'lat' => array(
+                'type' => 'varchar',
+                'not null' => TRUE,
+                'length' => '20',
+            ),
+            'lng' => array(
+                'type' => 'varchar',
+                'not null' => TRUE,
+                'length' => '20',
+            ),
+        ),
+        'primary key' => array('location_id'),
+    );
+    return $schema;
+}
+
+function iknow_address_schema() {
+    $schema['iknow_address'] = array(
+        'fields' => array(
+            'address_id' => array(
+                'type' => 'serial',
+                'not null' => TRUE,
+                'unsigned' => TRUE,
+            ),
+            'address' => array(
+                'type' => 'varchar',
+                'length' => '256',
+                'not null' => TRUE,
+            ),
+            'city' => array(
+                'type' => 'varchar',
+                'length' => '64',
+                'not null' => TRUE,
+            ),
+            'country' => array(
+                'type' => 'varchar',
+                'length' => '64',
+                'not null' => TRUE,
+            ),
+        ),
+        'primary key' => array('address_id'),
+    );
+    return $schema;
+}
+
+function iknow_category_schema() {
+    $schema['iknow_category'] = array(
+        'fields' => array(
+            'category_id' => array(
+                'type' => 'serial',
+                'not null' => TRUE,
+                'unsigned' => TRUE,
+            ),
+            'category' => array(
+                'type' => 'varchar',
+                'length' => '64',
+                'not null' => TRUE,
+            ),
+        ),
+        'primary key' => array('category_id'),
+    );
+    return $schema;
+}
+
+function iknow_post_comment_schema() {
+    $schema['iknow_post_comment'] = array(
+        'fields' => array(
+            'comment_id' => array(
+                'type' => 'serial',
+                'not null' => TRUE,
+                'unsigned' => TRUE,
+            ),
+            'post_id' => array(
+                'type' => 'int',
+                'not null' => TRUE,
+            ),
+            'uid' => array(
+                'type' => 'int',
+                'not null' => FALSE,
+            ),
+            'content' => array(
+                'type' => 'varchar',
+                'not null' => TRUE,
+                'length' => '256',
+            ),
+            'comment_date' => array(
+                'type' => 'datetime',
+                'not null' => TRUE,
+            ),
+        ),
+        'primary key' => array('comment_id'),
+    );
+    return $schema;
+}
+?>

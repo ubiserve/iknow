@@ -1,0 +1,330 @@
+<?php
+// $Id$
+/**
+ * @file
+ * Module for Web Service Interface.
+ */
+ 
+ 
+/**
+ * Implementation of hook_help()
+ */
+function iKnowWS_help($path, $arg) {
+    if($path == 'admin/help#iKnowWS') {
+        $iKnow_url = 'http://jimu.cs.hut.fi/mediawiki/index.php/Main_Page';
+        $iKnow_link = l('iKnow Wiki',$iKnow_url, array('attributes' => array('target' => '_blank')));
+        $txt = 'This module provides Web Service Interface for iKnow to collect data. e.g. Collect data from iKnow mobile app. More detail in '.$iKnow_link.'.';
+        return '<p>'.t($txt).'</p>';
+    }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function iKnowWS_menu(){
+    $items['admin/settings/iKnowWS'] = array(
+        'title' => 'iKnow Web Service Interface settings',
+        'description' => 'Enable or disable iKnow WS, and configure some settings',
+        'page callback' => 'iKnow_WS_admin_settings',
+        'access arguments' => array('administer site configuration'),
+        'type' => MENU_NORMAL_ITEM,
+    );
+    
+    /***********************************
+     * Test for defferent REST module
+     ***********************************/
+    $items['rest/test'] = array(
+        'title' => 'iKnow REST Test',
+        'type' => NORMAL_CALLBACK,
+        'page callback' =>'rest_provider_controller',
+        'page arguments' => array('iKnowWS','testcontroller'),
+        'access arguments' => array('access content'),
+    );
+    $items['rest/session'] = array(
+        'title' => 'iKnow session',
+        'description' => 'Handel login, logout, and current status',
+        'type' => NORMAL_CALLBACK,
+        'page callback' => 'rest_provider_controller',
+        'page arguments' => array('iKnowWS','sessioncontroller'),
+        'access arguments' => array('access content'),
+    );
+    $items['rest/iknode'] = array(
+        'title' => 'iKnow node',
+        'description' => 'Handel operations on a node',
+        'type' => NORMAL_CALLBACK,
+        'page callback' => 'rest_provider_controller',
+        'page arguments' => array('iKnowWS','iknodecontroller'),
+        'access arguments' => array('access content'),
+    );
+    $items['rest/testpage'] = array(
+        'title' => 'iKnow REST Test',
+        'type' => NORMAL_CALLBACK,
+        'page callback' =>'iknow_test_page_display',
+        'access arguments' => array('access content'),  
+    );
+    
+    return $items;
+}
+
+/**
+ * Implementation of hook_node_info().
+ */
+/*function iKnowWS_node_info(){
+    return array(
+        'iknow_node' => array(
+            'name' => t('I know'),
+            'module' => 'iKnowWS',
+            'description' => t('I know ...'),
+            'has_title' => TRUE,
+            'title_label' => t('Title'),
+            'has_body' => TRUE,
+            'body_label' => t('Content'),
+        )
+    );
+}*/
+
+/**
+ * Implementation of hook_form().
+ */
+function iKnowWS_form(&$node){
+    $type = node_get_types('type', $node);
+    if ($type->has_title) {
+	$form['title'] = array(
+	    '#type' => 'textfield',
+	    '#title' => check_plain($type->title_label),
+	    '#required' => TRUE,
+	    '#default_value' => $node->title,
+	    '#weight' => -5,
+	    );
+    }
+    //fetch all types from table {iknow_node_type}
+    $sql = "SELECT * FROM {iknow_node_type}";
+    $type_result = db_query($sql);
+    while($option = db_fetch_array($type_result)){
+        $type_options[t($option['tid'])] = t($option['name']);
+    }
+    $form['tid'] = array(
+        '#type' => 'select',
+        '#title' => t("Type"),
+        '#options' => $type_options,
+        '#required' => TRUE,
+        '#default_value' => $node->tid,
+    );
+    $form['latitude'] = array(
+        '#type' => 'textfield',
+        '#title' => t("Latitude"),
+        '#size' => 20,
+        '#required' => TRUE,
+        '#default_value' => $node->latitude,
+    );
+    $form['longitude'] = array(
+        '#type' => 'textfield',
+        '#title' => t("Longitude"),
+        '#size' => 20,
+        '#required' => TRUE,
+        '#default_value' => $node->longitude,
+    );
+    $form['address'] = array(
+        '#type' => 'textfield',
+        '#title' => t("Address"),
+        '#size' => 100,
+        '#required' => FALSE,
+        '#default_value' => $node->address_info,
+    );
+    if ($type->has_body) {
+        $form['body'] = array(
+            '#type' => 'textarea', 
+            '#title' => check_plain($type->body_label), 
+            '#rows' => 10,
+            '#default_value' => $node->body,
+            '#required' => TRUE,
+        );
+    }
+    return $form;
+}
+
+
+/**
+ * Validate the form.
+ */
+function iKnowWS_validate($form, &$form_state){
+    
+    if(!is_numeric($form_state['latitude'] ['#value']))
+    {
+        form_set_error('latitude',t('The latitude should be a number.'));
+    }
+    if(!is_numeric($form_state['longitude'] ['#value']))
+    {
+        form_set_error('longitude',t('The longitude should be a number.'));
+    }
+    
+}
+
+/**
+ * implements hook_insert().
+ */
+function iKnowWS_insert($node){
+    //Find if this address has already been added.
+    $find_address = "SELECT aid FROM {iknow_node_address} WHERE address='%s'";
+    $aid = db_result(db_query($find_address,$node->address));
+    if($aid==FALSE){
+        //Insert new address
+        $insert_address = "INSERT INTO {iknow_node_address}(address) VALUES('%s')";
+        db_query($insert_address, $node->address);
+        
+        //get aid
+        $find_address = "SELECT aid FROM {iknow_node_address} WHERE address='%s'";
+        $aid = db_result(db_query($find_address,$node->address));
+    }
+    
+    //Insert into database
+    $insert_node = "INSERT INTO {iknow_node}(vid,nid,latitude,longitude,tid,aid) VALUES(%d,%d,'%s','%s',%d,%d)";
+    db_query($insert_node, $node->vid, $node->nid, $node->latitude, $node->longitude, $node->tid, $aid);
+}
+/**
+ * Implements hook_update().
+ */
+function iKnowWS_update($node){
+    if($node->revision){
+       iKnowWS_insert($node); 
+    }else{
+       
+    }
+}
+/**
+ * Implements hook_delete().
+ */
+function iKnowWS_delete($node){
+    db_query('DELETE FROM {iknow_node} WHERE nid = %d',$node->nid);
+}
+
+/**
+ * This implementation just handles deleting node revisions.
+ * Implements hook_nodeapi(). 
+ */
+function iKnowWS_nodeapi(&$node, $op, $teaser, $page) {
+  if ($op == 'delete revision') {
+    db_query('DELETE FROM {iknow_node} WHERE vid = %d',$node->vid);
+  }
+}
+
+/**
+ * Implementation of hook_load().
+ */
+function iKnowWS_load($node){
+    $sql = 'SELECT latitude, longitude, n.tid tid, t.name type_name, n.aid aid, a.address address_info '
+          .'FROM {iknow_node} as n '
+          .'INNER JOIN {iknow_node_type} as t on n.tid = t.tid '
+          .'INNER JOIN {iknow_node_address} as a on n.aid = a.aid '
+          .'WHERE vid = %d';
+    $result = db_query($sql, $node->vid, $node->nid);
+    $iknow_obj = db_fetch_object($result);
+    return $iknow_obj;
+}
+
+/**
+ * Implementation of hook_view().
+ */
+function iKnowWS_view($node, $teaser = FALSE, $page = FALSE) {
+	$node = node_prepare($node, $teaser); // get it ready for display
+	// Add theme stuff here
+	$node->content['latitude'] = array(
+		'#value' => '<br/>Latitude:'.$node->latitude,
+		'#weight' => 1,
+	);
+        $node->content['longitude'] = array(
+		'#value' => '<br/>Longitude:'.$node->longitude,
+		'#weight' => 2,
+	);
+        $node->content['address'] = array(
+		'#value' => '<br/>Address:'.$node->address_info,
+		'#weight' => 3,
+	);
+        $node->content['iknow_type'] = array(
+		'#value' => '<br/>Type:'.$node->type_name,
+		'#weight' => 4,
+	);
+        
+        
+	return $node;
+}
+
+
+/**
+ * Menu callback for admin/settings/iKnowWS
+ *  -Enable or disable iKnow WS
+ *  -configure some settings
+ */
+function iKnow_WS_admin_settings(){
+    
+}
+/**
+ * Menu callback for iknow/testpage
+ *  -Provide a webpage for testing RESTFull requests 
+ */
+function iknow_test_page_display(){
+    drupal_add_js(drupal_get_path('module','iKnowWS').'/iKnowWS.js');
+    return drupal_get_form('iknow_restfull_test_form');
+}
+function iknow_restfull_test_form(){
+    $form['url'] = array(
+        '#type' => 'textfield',
+        '#title' => t('URL'),
+        '#size' => 60,
+        '#description' => 'e.g. /rest/test',
+    );
+    $methods = array('GET'=>'GET','POST'=>'POST','PUT'=>'PUT','DELETE'=>'DELETE');
+    $form['method'] = array(
+        '#type' => 'select',
+        '#title' => t('Method'),
+        '#options' => $methods,
+        '#default_value' => 'GET',
+    );
+    $form['paramats'] = array(
+        '#type' => 'textarea',
+        '#title' => 'Parameters',
+        '#description' => 'e.g. {"username":"test","password":"xxxx"} Looks like JSON.',
+    );
+    $form['result'] = array(
+        '#value' => '<div id="request-result"></div><div><input type="button" value="submit" id="submit-button" onclick="test_request()" /></div>',  
+    );
+    return $form;
+}
+
+/**
+ *
+ */
+function _request_return_require_login(){
+    return array(
+        'response_code' => '401', 
+        'headers' => array(),
+        'body' => 'This request requires login access.',
+        'media_type' => 'text/plain',
+        'charset' => 'utf-8',
+    );
+}
+/**
+ *
+ */
+function _request_return_item_not_found(){
+    return array(
+        'response_code' => '404', 
+        'headers' => array(),
+        'body' => 'No item can be found.',
+        'media_type' => 'text/plain',
+        'charset' => 'utf-8',
+    );
+}
+
+/**
+ *
+ */
+function _request_return_post_error(){
+    return array(
+        'response_code' => '403', // failed
+        'headers' => array(),
+        'body' => 'Failed to insert new item.',
+        'media_type' => 'text/plain',
+        'charset' => 'utf-8',
+    );  
+}

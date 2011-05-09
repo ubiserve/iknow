@@ -1,0 +1,7 @@
+; $Id$
+name = "iKnow Web Service Interface"
+description = "Provide Web Service Interface for iKnow collecting data."
+dependencies[] = rest_provider
+core = 6.x
+php = 5.x
+package = "iKnow"

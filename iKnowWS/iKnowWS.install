@@ -1,0 +1,115 @@
+<?php
+// $Id$
+/**
+ * Implementation of hook_install().
+ */
+function iKnowWS_install() {
+    /*drupal_install_schema('iKnow_node');
+    drupal_install_schema('iknow_node_type');
+    drupal_install_schema('iknow_node_address');
+    
+    //Insert types
+    $sql = "INSERT INTO {iknow_node_type} (tid, name) VALUES (%d, '%s')";
+    db_query($sql, 1, 'normal');
+    db_query($sql, 2, 'activity');
+    db_query($sql, 3, 'instant');*/
+}
+/**
+ * Implementation of hook_uninstall().
+ */
+function iKnowWS_uninstall() {
+    /*drupal_uninstall_schema('iKnow_node');
+    drupal_uninstall_schema('iknow_node_type');
+    drupal_uninstall_schema('iknow_node_address');*/
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function iKnow_node_schema() {
+    $schema['iknow_node'] = array(
+        'fields' => array(
+            'vid' => array(
+                'type' => 'int',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ),
+            'nid' => array(
+                'type' => 'int',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ),
+            'latitude' => array(
+                'type' => 'varchar',
+                'length' => 20,
+                'not null' => TRUE,
+            ),
+            'longitude' => array(
+                'type' => 'varchar',
+                'length' => 20,
+                'not null' => TRUE,
+            ),
+            'tid' => array(
+                'type' => 'int',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ),
+            'aid' => array(
+                'type' => 'int',
+                'unsigned' => TRUE,
+                'not null' => FALSE,
+            ),
+        ),
+        'indexes' => array(
+            'nid' => array('nid'),
+        ),
+        'primary key' => array('vid'),  
+    );
+    return $schema;
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function iKnow_node_type_schema() {
+    $schema['iknow_node_type'] = array(
+        'fields' => array(
+            'tid' => array(
+                'type' => 'int',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ),
+            'name' => array(
+                'type' => 'varchar',
+                'length' => 40,
+                'not null' => TRUE,
+            ),
+            
+        ),
+        'primary key' => array('tid'),                                 
+    );
+    return $schema;
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function iKnow_node_address_schema() {
+    $schema['iknow_node_address'] = array(
+        'fields' => array(
+            'aid' => array(
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ),
+            'address' => array(
+                'type' => 'varchar',
+                'length' => 256,
+                'not null' => TRUE,
+            ),
+            
+        ),
+        'primary key' => array('aid'),                                 
+    );
+    return $schema;
+}
